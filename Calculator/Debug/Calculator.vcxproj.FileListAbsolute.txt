@@ -1,0 +1,2 @@
+E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\Debug\Calculator.exe
+E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\Debug\Calculator.pdb
