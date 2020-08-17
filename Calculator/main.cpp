@@ -79,8 +79,9 @@ struct Token
 class Token_stream
 {
 public:
-	Token get();
+	Token get();				// get Token from cin	
 	void putback(Token t);
+	void ignore(char c);		// discard characters up to c
 private:
 	bool full{ false };
 	Token buffer;				// here where to keep Token buffer using putback()
@@ -88,11 +89,13 @@ private:
 
 Token Token_stream::get()
 {
+	// Check if it already has a Token buffer
 	if (full)
 	{
 		full = false;
 		return buffer;
 	}
+	// If it doesn't have a Token, get a new one
 	char ch;
 	cin >> ch;
 	switch (ch)
@@ -128,6 +131,23 @@ void Token_stream::putback(Token t)
 	full = true;		// buffer is now full
 }
 
+void Token_stream::ignore(char c)
+// c present the kind of Token
+{
+	// First check buffer and discard it
+	if (full && c == buffer.kind)
+	{
+		full = false;
+		return;
+	}
+	full = false;
+	// Now search input
+	// Ignore all input until it found character c
+	char ch = 0;
+	while (cin >> ch)
+		if (c == ch) return;
+	
+}
 
 // get next token
 Token get_token()    // read a token from cin
@@ -218,7 +238,6 @@ double term()
 		}
 	}
 }
-
 double primary()
 {
 	Token t = ts.get();
@@ -232,26 +251,41 @@ double primary()
 		return value;
 	}
 	case number:				// use '8' to identify number
-		return t.value;		// return number's value
+		return t.value;			// return number's value
 	case '-':
 		return -primary();
 	case '+':
 		return primary();
+	case print:
+		ts.putback(t);			// Save print for calculator() discard	
 	default:
 		error("Primary expected");
 	}
+}
+
+void clean_up_mess()
+{
+	ts.ignore(print);
 }
 
 void calculator()
 {
 	while (cin)
 	{
-		cout << prompt;
-		Token t = ts.get();
-		while (t.kind == print) t = ts.get();		// eat print
-		if (t.kind == quit) return;					// quit program
-		ts.putback(t);								// save Token for expression() process
-		cout << result << expression() << "\n";
+		try
+		{
+			cout << prompt;
+			Token t = ts.get();
+			while (t.kind == print) t = ts.get();		// discard all print
+			if (t.kind == quit) return;					// quit program
+			ts.putback(t);								// save Token for expression() process
+			cout << result << expression() << "\n";
+		}
+		catch (exception& e)
+		{
+			cerr << "Error " << e.what() << "\n";
+			clean_up_mess();
+		}
 	}
 }
 
