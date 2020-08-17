@@ -10,18 +10,24 @@ Read input from cin and print out from cout
 
 The grammar for input is:
 
-Statement:
-	Expression
+Calculation:
+	Statement
 	Quit
 	Print
+	Calculation Statement
 Quit:
 	'q'
 Print:
 	';'
+Statement:
+	Declaration
+	Expression
+Declaration:
+	"let" Name '=' Declaration
 Expression:
 	Term
-	Expression '+' Term
-	Expression '-' Term
+	Term '+' Term
+	Term '-' Term
 Term:
 	Primary
 	Term '*' Primary
@@ -29,20 +35,34 @@ Term:
 	Term '%' Primary
 Primary:
 	Number
-	'('Expression ')'
+	'(' Expression ')'
+	Name
+	Name '=' Expression
 Number:
 	floating-point literal
+Name:
+	set of characters except
+		- the first character is a number
+		- is a special character
 
 	Use Token_stream ts to process input from cin
 */
 
 #include <iostream>
 #include <string>
+#include <vector>
+#include <cmath>
 
 using namespace std;
 
 void error(string message)
 {
+	throw runtime_error(message);
+}
+
+void error(string mes1, string mes2)
+{
+	string message = mes1 + mes2;
 	throw runtime_error(message);
 }
 
@@ -66,12 +86,17 @@ constexpr char result = '=';
 constexpr char number = '8';
 constexpr char print = ';';
 constexpr char quit = 'q';
+constexpr char let = 'L';
+constexpr char name = 'a';
+const string declkey = "let";
 
 struct Token
 {
-	char kind;
-	double value;
+	char kind = 0;
+	double value = 0;
+	string name = "";
 	Token(char ch) :kind(ch), value(0) {};
+	Token(char ch, string n) :kind(ch), name(n), value(0) {};
 	Token(char ch, double num) :kind(ch), value(num) {};
 	Token() = default;
 };
@@ -109,17 +134,36 @@ Token Token_stream::get()
 	case '*':
 	case '/':
 	case '%':
-		return Token(ch);			// let each character present itself
+	case '=':
+		return Token(ch);				// let each character present itself
 	case '.':
 	case '0': case '1': case '2': case '3': case '4': 
 	case '5': case '6': case '7': case '8': case '9':
 	{
-		cin.putback(ch);			// put digit back to input stream
+		cin.putback(ch);				// put digit back to input stream
 		double val = 0;
-		cin >> val;					// read a floating-point number
+		cin >> val;						// read a floating-point number
 		return Token(number, val);		// let 8 present a number
 	}
 	default:
+		if (isalpha(ch))
+		{
+			string s;	
+			// Assign first character of a word to s
+			s = ch;	
+
+			// Check if the word is ended
+			// Add the rest characters of this word to s
+			while (cin.get(ch) && (isalpha(ch) || isdigit(ch))) s += ch;	
+			cin.unget();
+
+			// If s matches declare key
+			// Return Token that process declaration
+			if (s == declkey) return Token(let);	
+
+			// Else return a variable name to Token_stream
+			return Token(name, s);														
+		}	
 		error("Bad token");
 	}
 }
@@ -175,11 +219,73 @@ Token get_token()    // read a token from cin
 	}
 }
 
-Token_stream ts;	// provide get() and putback()
-double expression(); // deal with + and -
-double term();		 // deal with * and /
-double primary();	 // deal with number and parentheses
+struct Variable
+{
+	string name;
+	double value;
+	Variable(string n, double v) :name(n), value(v) {};
+};
 
+Token_stream ts;		// provide get() and putback()
+vector<Variable> var_table;
+double statement();		// deal with declaration and expression
+double declaration();	// 
+double expression();	// deal with + and -
+double term();			// deal with * and /
+double primary();		// deal with number and parentheses
+
+bool is_declared(string n)
+// is var already in var_table
+{
+	for (const Variable& var : var_table)
+		if (var.name == n) return true;
+	return false;
+}
+
+void define_name(string n, double val)
+// add {n,val} to var_table
+{
+	if (is_declared(n)) error("define_name() declared twice");
+	var_table.push_back(Variable{ n,val });
+}
+
+double get_value(string n)
+{
+	for (const Variable& var : var_table)
+		if (var.name == n) return var.value;
+	error("get_value() variable is not found : ", n);
+}
+
+void set_value(string n, double v)
+{
+	for (Variable& var : var_table)
+		if (var.name == n) var.value = v;
+	error("set_value() variable is not found : ", n);
+}
+
+double statement()
+{
+	Token t = ts.get();
+	switch (t.kind)
+	{
+	case let:
+		return declaration();
+	default:
+		ts.putback(t);
+		return expression();
+	}
+}
+double declaration()
+{
+	Token t = ts.get();
+	if (t.kind != name) error(" name is expected");
+	string name = t.name;
+	t = ts.get();				// Get next input
+	if (t.kind != '=') error(" = is expected");
+	double val = expression();
+	define_name(name, val);
+	return val;
+}
 double expression()
 {
 	double left = term();
@@ -230,7 +336,6 @@ double term()
 			left = i1 % i2;
 			t = ts.get();
 			break;
-
 		}
 		default:
 			ts.putback(t);
@@ -257,7 +362,22 @@ double primary()
 	case '+':
 		return primary();
 	case print:
-		ts.putback(t);			// Save print for calculator() discard	
+		ts.putback(t);			// Save print for calculator() discard
+	case name:
+	{
+		string name = t.name;
+		t = ts.get();			// Get next input
+		// Name '=' Expression
+		if (t.kind == '=')
+		{
+			double val = expression();
+			set_value(name, val);
+			return val;
+		}
+		ts.putback(t);			// If search '=' false, save this Token to other function
+		// Name
+		return get_value(name);
+	}		
 	default:
 		error("Primary expected");
 	}
@@ -279,7 +399,7 @@ void calculator()
 			while (t.kind == print) t = ts.get();		// discard all print
 			if (t.kind == quit) return;					// quit program
 			ts.putback(t);								// save Token for expression() process
-			cout << result << expression() << "\n";
+			cout << result << statement() << "\n";
 		}
 		catch (exception& e)
 		{
