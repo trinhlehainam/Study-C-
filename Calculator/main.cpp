@@ -15,6 +15,14 @@ void keep_window_open()
 	cin >> any;
 }
 
+template<class R, class A> 
+R narrow_cast(const A& a)
+{
+	R r = R(a);								// convert A value to R value;
+	if (A(r) != a) error("Data lost");		// convert value back to A to check if data is lost
+	return r;
+}
+
 struct Token
 {
 	char kind;
@@ -47,7 +55,7 @@ Token Token_stream::get()
 	{
 	case 'q':				// for quit
 	case ';':				// for print
-	case '(': case ')': case '+': case '-': case '*' : case '/':
+	case '(': case ')': case '+': case '-': case '*' : case '/': case '%':
 		return Token(ch);			// let each character present itself
 	case '.':
 	case '0': case '1': case '2': case '3': case '4': 
@@ -80,7 +88,7 @@ Token get_token()    // read a token from cin
 	switch (ch) {
 		//not yet   case ';':    // for "print"
 		//not yet   case 'q':    // for "quit"
-	case '(': case ')': case '+': case '-': case '*': case '/':
+	case '(': case ')': case '+': case '-': case '*': case '/': case '%':
 		return Token(ch);        // let each character represent itself
 	case '.':
 	case '0': case '1': case '2': case '3': case '4':
@@ -115,7 +123,7 @@ double expression()
 			t = ts.get();
 			break;
 		case '-':
-			left += term();
+			left -= term();
 			t = ts.get();
 			break;
 		default:
@@ -139,10 +147,20 @@ double term()
 		case '/':
 		{
 			double p = primary();
-			if (p == 0) error("divide to 0");
+			if (p == 0) error("/: divide by zero");
 			left /= p;
 			t = ts.get();
 			break;
+		}
+		case '%':
+		{
+			int i1 = narrow_cast<int>(left);
+			int i2 = narrow_cast<int>(primary());
+			if (i2 == 0) error("%: divide by zero");
+			left = i1 % i2;
+			t = ts.get();
+			break;
+
 		}
 		default:
 			ts.putback(t);
@@ -165,6 +183,10 @@ double primary()
 	}
 	case '8':				// use '8' to identify number
 		return t.value;		// return number's value
+	case '-':
+		return -primary();
+	case '+':
+		return primary();
 	default:
 		error("Primary expected");
 	}
@@ -194,14 +216,14 @@ int main()
 		double val = 0;
 		while (cin)
 		{
+			cout << ">";
 			Token t = ts.get();
-			if (t.kind == 'q') break;
-			if (t.kind == ';')
-				cout << "=" << val << "\n";
-			else
-				ts.putback(t);
-			val = expression();
+			while (t.kind == ';') t = ts.get();  // eat ';'
+			if (t.kind == 'q') break;			 // quit program when enter 'q'
+			ts.putback(t);						 // save Token to expression() process				
+			cout << "=" << expression() << "\n";
 		}
+		keep_window_open();
 		return 0;
 	}
 	catch (exception& e)
