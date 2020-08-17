@@ -1,3 +1,41 @@
+/*
+Simple calculator
+
+Revision history
+	Revised by Trinh Le Hai Nam 17th August 2020
+	Original written by Trinh Le Hai Nam Summer 2020
+
+The program implements a basic process of calculator
+Read input from cin and print out from cout
+
+The grammar for input is:
+
+Statement:
+	Expression
+	Quit
+	Print
+Quit:
+	'q'
+Print:
+	';'
+Expression:
+	Term
+	Expression '+' Term
+	Expression '-' Term
+Term:
+	Primary
+	Term '*' Primary
+	Term '/' Primary
+	Term '%' Primary
+Primary:
+	Number
+	'('Expression ')'
+Number:
+	floating-point literal
+
+	Use Token_stream ts to process input from cin
+*/
+
 #include <iostream>
 #include <string>
 
@@ -22,6 +60,12 @@ R narrow_cast(const A& a)
 	if (A(r) != a) error("Data lost");		// convert value back to A to check if data is lost
 	return r;
 }
+
+constexpr char prompt = '>';
+constexpr char result = '=';
+constexpr char number = '8';
+constexpr char print = ';';
+constexpr char quit = 'q';
 
 struct Token
 {
@@ -53,9 +97,15 @@ Token Token_stream::get()
 	cin >> ch;
 	switch (ch)
 	{
-	case 'q':				// for quit
-	case ';':				// for print
-	case '(': case ')': case '+': case '-': case '*' : case '/': case '%':
+	case quit:				
+	case print:				
+	case '(':
+	case ')':
+	case '+':
+	case '-':
+	case '*':
+	case '/':
+	case '%':
 		return Token(ch);			// let each character present itself
 	case '.':
 	case '0': case '1': case '2': case '3': case '4': 
@@ -64,7 +114,7 @@ Token Token_stream::get()
 		cin.putback(ch);			// put digit back to input stream
 		double val = 0;
 		cin >> val;					// read a floating-point number
-		return Token('8', val);		// let 8 present a number
+		return Token(number, val);		// let 8 present a number
 	}
 	default:
 		error("Bad token");
@@ -98,7 +148,7 @@ Token get_token()    // read a token from cin
 		double val;
 		cin >> val;
 		/*cin >> val;*/              // read a floating-point number
-		return Token('8', val);   // let '8' represent "a number"
+		return Token(number, val);   // let '8' represent "a number"
 	}
 	default:
 		error("Bad token");
@@ -181,7 +231,7 @@ double primary()
 		if (t.kind != ')') error(") expected");
 		return value;
 	}
-	case '8':				// use '8' to identify number
+	case number:				// use '8' to identify number
 		return t.value;		// return number's value
 	case '-':
 		return -primary();
@@ -192,37 +242,24 @@ double primary()
 	}
 }
 
-/*
-Expression:
-	Term
-	Expression '+' Term
-	Expression '-' Term
-Term:
-	Primary
-	Term '*' Primary
-	Term '/' Primary
-	Term '%' Primary
-Primary:
-	Number
-	'('Expression ')'
-Number:
-	floating-point literal
-*/
+void calculator()
+{
+	while (cin)
+	{
+		cout << prompt;
+		Token t = ts.get();
+		while (t.kind == print) t = ts.get();		// eat print
+		if (t.kind == quit) return;					// quit program
+		ts.putback(t);								// save Token for expression() process
+		cout << result << expression() << "\n";
+	}
+}
 
 int main()
 {
 	try
 	{
-		double val = 0;
-		while (cin)
-		{
-			cout << ">";
-			Token t = ts.get();
-			while (t.kind == ';') t = ts.get();  // eat ';'
-			if (t.kind == 'q') break;			 // quit program when enter 'q'
-			ts.putback(t);						 // save Token to expression() process				
-			cout << "=" << expression() << "\n";
-		}
+		calculator();
 		keep_window_open();
 		return 0;
 	}
