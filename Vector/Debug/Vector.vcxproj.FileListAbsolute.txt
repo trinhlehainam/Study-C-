@@ -1,2 +1,0 @@
-E:\DATA\Game\Program\C++\Git\Study-C-\Vector\Debug\Vector.exe
-E:\DATA\Game\Program\C++\Git\Study-C-\Vector\Debug\Vector.pdb

@@ -30,11 +30,9 @@ public:
 	Token get();
 	void putback(Token t);
 private:
-	bool full = false;
+	bool full{ false };
 	Token buffer;				// here where to keep Token buffer using putback()
 };
-
-
 
 Token Token_stream::get()
 {
@@ -99,10 +97,10 @@ Token get_token()    // read a token from cin
 	}
 }
 
-Token_stream ts;
-double expression();
-double term();
-double primary();
+Token_stream ts;	// provide get() and putback()
+double expression(); // deal with + and -
+double term();		 // deal with * and /
+double primary();	 // deal with number and parentheses
 
 double expression()
 {
@@ -114,11 +112,11 @@ double expression()
 		{
 		case '+':
 			left += term();
-			t = get_token();
+			t = ts.get();
 			break;
 		case '-':
 			left += term();
-			t = get_token();
+			t = ts.get();
 			break;
 		default:
 			ts.putback(t);
@@ -136,14 +134,14 @@ double term()
 		{
 		case '*':
 			left *= primary();
-			t = get_token();
+			t = ts.get();
 			break;
 		case '/':
 		{
 			double p = primary();
 			if (p == 0) error("divide to 0");
 			left /= p;
-			t = get_token();
+			t = ts.get();
 			break;
 		}
 		default:
@@ -152,6 +150,7 @@ double term()
 		}
 	}
 }
+
 double primary()
 {
 	Token t = ts.get();
@@ -160,7 +159,7 @@ double primary()
 	case '(':				// handle '(' expression ')'
 	{
 		double value = expression();
-		t = get_token();
+		t = ts.get();
 		if (t.kind != ')') error(") expected");
 		return value;
 	}
@@ -192,8 +191,17 @@ int main()
 {
 	try
 	{
-		cout << "=" << expression();
-		keep_window_open();
+		double val = 0;
+		while (cin)
+		{
+			Token t = ts.get();
+			if (t.kind == 'q') break;
+			if (t.kind == ';')
+				cout << "=" << val << "\n";
+			else
+				ts.putback(t);
+			val = expression();
+		}
 		return 0;
 	}
 	catch (exception& e)

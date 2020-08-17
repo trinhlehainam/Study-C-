@@ -1,5 +1,5 @@
 ﻿  main.cpp
-E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\main.cpp(66): warning C4715: 'Token_stream::get': not all control paths return a value
-E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\main.cpp(100): warning C4715: 'get_token': not all control paths return a value
-E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\main.cpp(172): warning C4715: 'primary': not all control paths return a value
+E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\main.cpp(64): warning C4715: 'Token_stream::get': not all control paths return a value
+E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\main.cpp(98): warning C4715: 'get_token': not all control paths return a value
+E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\main.cpp(171): warning C4715: 'primary': not all control paths return a value
   Calculator.vcxproj -> E:\DATA\Game\Program\C++\Git\Study-C-\Calculator\Debug\Calculator.exe
