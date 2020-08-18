@@ -38,17 +38,25 @@ Primary:
 	'(' Expression ')'
 	Name
 	Name '=' Expression
+	"sqrt" '(' Expression ')'
+	"pow" '(' Expression ',' Expression ')'
 Number:
 	floating-point literal
 Name:
-	set of characters except
-		- the first character is a number
-		- is a special character
+	Set of characters
+		Alow:
+			- first character is _
+		Not-allow:
+			- first character is a number
+			- is a special character (&.*,\,...)
 
 	Use Token_stream ts to process input from cin
 */
 
 #include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <cmath>
@@ -66,6 +74,13 @@ void error(string mes1, string mes2)
 	throw runtime_error(message);
 }
 
+void error(string mes, double number)
+{
+	ostringstream os;
+	os << mes << number;
+	throw runtime_error(os.str());
+}
+
 void keep_window_open()
 {
 	int any;
@@ -76,8 +91,10 @@ void keep_window_open()
 template<class R, class A> 
 R narrow_cast(const A& a)
 {
-	R r = R(a);								// convert A value to R value;
-	if (A(r) != a) error("Data lost");		// convert value back to A to check if data is lost
+	R r = R(a);			// convert A value to R value;
+
+	// convert value back to A to check if data is lost
+	if (A(r) != a) error("narrow_cast Data lost : ",typeid(R).name());	
 	return r;
 }
 
@@ -88,7 +105,11 @@ constexpr char print = ';';
 constexpr char quit = 'q';
 constexpr char let = 'L';
 constexpr char name = 'a';
-const string declkey = "let";
+constexpr char square_root = 'S';
+constexpr char power = 'P';
+const string declKey = "let";
+const string sqrtKey = "sqrt";
+const string powKey = "pow";
 
 struct Token
 {
@@ -135,6 +156,7 @@ Token Token_stream::get()
 	case '/':
 	case '%':
 	case '=':
+	case ',':
 		return Token(ch);				// let each character present itself
 	case '.':
 	case '0': case '1': case '2': case '3': case '4': 
@@ -157,9 +179,11 @@ Token Token_stream::get()
 			while (cin.get(ch) && (isalpha(ch) || isdigit(ch))) s += ch;	
 			cin.unget();
 
-			// If s matches declare key
-			// Return Token that process declaration
-			if (s == declkey) return Token(let);	
+			// If s matches key
+			// Return Token that process
+			if (s == declKey) return Token(let);	
+			if (s == sqrtKey) return Token(square_root);
+			if (s == powKey) return Token(power);
 
 			// Else return a variable name to Token_stream
 			return Token(name, s);														
@@ -193,32 +217,6 @@ void Token_stream::ignore(char c)
 	
 }
 
-// get next token
-Token get_token()    // read a token from cin
-{
-	char ch;
-	cin >> ch;    // note that >> skips whitespace (space, newline, tab, etc.)
-
-	switch (ch) {
-		//not yet   case ';':    // for "print"
-		//not yet   case 'q':    // for "quit"
-	case '(': case ')': case '+': case '-': case '*': case '/': case '%':
-		return Token(ch);        // let each character represent itself
-	case '.':
-	case '0': case '1': case '2': case '3': case '4':
-	case '5': case '6': case '7': case '8': case '9':
-	{
-		cin.putback(ch);         // put digit back into the input stream
-		double val;
-		cin >> val;
-		/*cin >> val;*/              // read a floating-point number
-		return Token(number, val);   // let '8' represent "a number"
-	}
-	default:
-		error("Bad token");
-	}
-}
-
 struct Variable
 {
 	string name;
@@ -226,15 +224,18 @@ struct Variable
 	Variable(string n, double v) :name(n), value(v) {};
 };
 
-Token_stream ts;		// provide get() and putback()
-vector<Variable> var_table;
-double statement();		// deal with declaration and expression
-double declaration();	// 
-double expression();	// deal with + and -
-double term();			// deal with * and /
-double primary();		// deal with number and parentheses
+class Symbol_table
+{
+private:
+	vector<Variable> var_table;
+public:
+	bool is_declared(string n);
+	void define_name(string n, double val);
+	double get_value(string n);
+	void set_value(string n, double v);
+};
 
-bool is_declared(string n)
+bool Symbol_table::is_declared(string n)
 // is var already in var_table
 {
 	for (const Variable& var : var_table)
@@ -242,26 +243,34 @@ bool is_declared(string n)
 	return false;
 }
 
-void define_name(string n, double val)
+void Symbol_table::define_name(string n, double val)
 // add {n,val} to var_table
 {
 	if (is_declared(n)) error("define_name() declared twice");
 	var_table.push_back(Variable{ n,val });
 }
 
-double get_value(string n)
+double Symbol_table::get_value(string n)
 {
 	for (const Variable& var : var_table)
 		if (var.name == n) return var.value;
 	error("get_value() variable is not found : ", n);
 }
 
-void set_value(string n, double v)
+void Symbol_table::set_value(string n, double v)
 {
 	for (Variable& var : var_table)
 		if (var.name == n) var.value = v;
 	error("set_value() variable is not found : ", n);
 }
+
+Token_stream ts;		// provide get() and putback()
+Symbol_table s_table;
+double statement();		// deal with declaration and expression
+double declaration();	// 
+double expression();	// deal with + and -
+double term();			// deal with * and /
+double primary();		// deal with number and parentheses
 
 double statement()
 {
@@ -283,7 +292,7 @@ double declaration()
 	t = ts.get();				// Get next input
 	if (t.kind != '=') error(" = is expected");
 	double val = expression();
-	define_name(name, val);
+	s_table.define_name(name, val);
 	return val;
 }
 double expression()
@@ -352,17 +361,36 @@ double primary()
 	{
 		double value = expression();
 		t = ts.get();
-		if (t.kind != ')') error(") expected");
+		if (t.kind != ')') error(") is expected");
 		return value;
 	}
-	case number:				// use '8' to identify number
-		return t.value;			// return number's value
-	case '-':
-		return -primary();
-	case '+':
-		return primary();
-	case print:
-		ts.putback(t);			// Save print for calculator() discard
+	case square_root:		// "sqrt" '(' Expression ')'
+	{
+		t = ts.get();
+		if (t.kind != '(') error("( is expected to start sqrt");
+		double val = expression();
+		if (val < 0) error("sqrt can't calculate negative value : ", val);
+		t = ts.get();
+		if (t.kind != ')') error(") is expected to end sqrt");
+		return sqrt(val);
+	}
+	case power:				// "pow" '(' Expression ')'
+	{
+		t = ts.get();
+		if (t.kind != '(') error("( is expected to start pow");
+		double lval = expression();
+		t = ts.get();
+		if (t.kind != ',') error("pow expect ',' to separate two expression");
+		int rval = narrow_cast<int>(expression());
+		t = ts.get();
+		if (t.kind != ')') error(") is expected to end pow");
+		double val = lval;
+		for (int i = 0; i < rval - 1; ++i)
+		{
+			val *= lval;
+		}
+		return val;
+	}
 	case name:
 	{
 		string name = t.name;
@@ -371,13 +399,21 @@ double primary()
 		if (t.kind == '=')
 		{
 			double val = expression();
-			set_value(name, val);
+			s_table.set_value(name, val);
 			return val;
 		}
 		ts.putback(t);			// If search '=' false, save this Token to other function
 		// Name
-		return get_value(name);
-	}		
+		return s_table.get_value(name);
+	}
+	case '-':
+		return -primary();
+	case '+':
+		return primary();
+	case number:				// use '8' to identify number
+		return t.value;			// return number's value
+	case print:
+		ts.putback(t);			// Save print for calculator() discard		
 	default:
 		error("Primary expected");
 	}
